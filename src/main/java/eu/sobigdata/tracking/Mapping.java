@@ -78,6 +78,7 @@ public class Mapping {
             }
         }
         clearBuffer(printer);
+        printer.close();
 
     }
 
