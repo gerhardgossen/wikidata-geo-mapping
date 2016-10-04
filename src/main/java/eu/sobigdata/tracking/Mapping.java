@@ -32,6 +32,7 @@ import static java.util.stream.Collectors.joining;
 
 public class Mapping {
 
+
     private enum Headers {
         TOKEN, ENTITY, OFFSET, ENTITY_URL, CONFIDENCE, WIKIDATA_ID, COORDINATES
     }
@@ -46,6 +47,7 @@ public class Mapping {
             + "FILTER (langMatches(lang(?label), 'de')) \n"
             + "}";
     private final static String URL_PREFIX = "https://de.wikipedia.org/wiki/";
+    private final static String QUERY_URL = "https://query.wikidata.org/sparql?query=";
     private final static int BUFFER_SIZE = 10;
     private final Map<String, String> wikiDataIds = new HashMap<>();
     private final Map<String, String> coordinates = new HashMap<>();
@@ -66,20 +68,19 @@ public class Mapping {
     }
 
     private void parse(String filename, File file, File outputFile) throws IOException {
-        CSVParser parser = CSVParser.parse(file, UTF_8, FORMAT);
-
         OutputStreamWriter out = new OutputStreamWriter(new FileOutputStream(outputFile), UTF_8);
-        CSVPrinter printer = new CSVPrinter(out, FORMAT.withHeader((Class<Enum<?>>) null));
-        for (CSVRecord record : parser) {
-            if (coordinates.containsKey(record.get(Headers.ENTITY))) {
-                emit(printer, record);
-            } else {
-                query(printer, record);
-            }
-        }
-        clearBuffer(printer);
-        printer.close();
 
+        try (CSVParser parser = CSVParser.parse(file, UTF_8, FORMAT);
+                CSVPrinter printer = new CSVPrinter(out, FORMAT.withHeader((Class<Enum<?>>) null))) {
+            for (CSVRecord record : parser) {
+                if (coordinates.containsKey(record.get(Headers.ENTITY))) {
+                    emit(printer, record);
+                } else {
+                    query(printer, record);
+                }
+            }
+            clearBuffer(printer);
+        }
     }
 
     private void query(CSVPrinter printer, CSVRecord record) throws IOException {
@@ -102,8 +103,7 @@ public class Mapping {
             .map(e -> String.format("<%s%s>", URL_PREFIX, e))
             .collect(joining(" "));
         String query = QUERY.replaceFirst("\\$VALUES\\$", values);
-        HttpUriRequest request = new HttpGet(
-            "https://query.wikidata.org/sparql?query=" + urlFormParameterEscaper().escape(query));
+        HttpUriRequest request = new HttpGet(QUERY_URL + urlFormParameterEscaper().escape(query));
         request.addHeader(HttpHeaders.ACCEPT, "text/csv");
         HttpResponse response = client.execute(request);
         if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
